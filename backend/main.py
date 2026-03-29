@@ -1,10 +1,18 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
+from fastapi.middleware.cors import CORSMiddleware
 import requests
 import json
-FEATHERLESS_API_KEY = "rc_226a031d834b3eb7accd4b6e703362dec08685f61dbba4d07a29efba1df301d7"
+FEATHERLESS_API_KEY = os.getenv("FEATHERLESS_API_KEY")
 
 app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 class Query(BaseModel):
     question: str
@@ -71,14 +79,21 @@ Return ONLY valid JSON like this:
     response = requests.post(url, headers=headers, json=data)
     result = response.json()
     print(result)
+    import re
+
+    content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
+
     try:
-        content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
-        parsed = json.loads(content)
+        json_match = re.search(r"\{.*\}", content, re.DOTALL)
+        if json_match:
+            parsed = json.loads(json_match.group())
+        else:
+            raise Exception("No JSON found")
     except:
         parsed = {
             "options": [],
-            "final_decision": str(result),
-            "reasoning": "Parsing failed"
+            "final_decision": "Error parsing AI response",
+            "reasoning": content
         }
 
-    return parsed  
+    return parsed
